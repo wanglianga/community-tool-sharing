@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { Wallet, Clock, CheckCircle, User, Phone, RefreshCw } from 'lucide-svelte';
+  import { Wallet, Clock, CheckCircle, User, Phone, RefreshCw, ArrowRight } from 'lucide-svelte';
   import type { BorrowRecord, DepositStatus, UserRole } from '../types';
 
   export let records: BorrowRecord[];
   export let currentRole: UserRole;
+  export let onStartRefund: (recordId: string) => void;
+  export let onCompleteRefund: (recordId: string) => void;
 
   const statusMap: Record<DepositStatus, { label: string; color: string; bgColor: string; progressColor: string; progressWidth: string }> = {
     held: { label: '保管中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-200', progressColor: 'bg-amber-500', progressWidth: 'w-1/3' },
@@ -94,8 +96,24 @@
 
         {#if currentRole === 'admin' && record.depositStatus === 'held'}
           <div class="mt-3 pt-3 border-t border-slate-200 flex justify-end gap-2">
-            <button class="px-3 py-1.5 text-xs font-medium bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors">
+            <button
+              on:click={() => onStartRefund(record.id)}
+              class="px-3 py-1.5 text-xs font-medium bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors flex items-center gap-1.5"
+            >
+              <ArrowRight class="w-3.5 h-3.5" />
               登记退还
+            </button>
+          </div>
+        {/if}
+
+        {#if currentRole === 'admin' && record.depositStatus === 'refunding'}
+          <div class="mt-3 pt-3 border-t border-slate-200 flex justify-end gap-2">
+            <button
+              on:click={() => onCompleteRefund(record.id)}
+              class="px-3 py-1.5 text-xs font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors flex items-center gap-1.5"
+            >
+              <CheckCircle class="w-3.5 h-3.5" />
+              确认已退还
             </button>
           </div>
         {/if}

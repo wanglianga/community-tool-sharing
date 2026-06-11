@@ -13,7 +13,9 @@
     currentRole,
     activeFilter,
     selectedTool,
-    stats
+    stats,
+    startDepositRefund,
+    completeDepositRefund
   } from './stores';
   import type { Tool, ToolStatus, UserRole } from './types';
 
@@ -66,6 +68,27 @@
       return orders.filter(o => o.id !== id);
     });
   }
+
+  function handleStartDepositRefund(recordId: string) {
+    startDepositRefund(recordId);
+  }
+
+  function handleCompleteDepositRefund(recordId: string) {
+    completeDepositRefund(recordId);
+    borrowRecords.update(records => {
+      const record = records.find(r => r.id === recordId);
+      if (record) {
+        tools.update(items =>
+          items.map(t =>
+            t.id === record.toolId && t.status === 'borrowed'
+              ? { ...t, status: 'available' as ToolStatus, currentBorrower: undefined, expectedReturnDate: undefined }
+              : t
+          )
+        );
+      }
+      return records;
+    });
+  }
 </script>
 
 <div class="min-h-screen bg-gradient-to-br from-slate-50 via-forest-50/30 to-slate-50">
@@ -90,7 +113,12 @@
       </div>
 
       <div class="space-y-6">
-        <DepositPanel records={$borrowRecords} currentRole={$currentRole} />
+        <DepositPanel
+          records={$borrowRecords}
+          currentRole={$currentRole}
+          onStartRefund={handleStartDepositRefund}
+          onCompleteRefund={handleCompleteDepositRefund}
+        />
         <RepairQueue
           orders={$repairOrders}
           currentRole={$currentRole}
