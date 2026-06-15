@@ -5,6 +5,8 @@
   import DepositPanel from './components/DepositPanel.svelte';
   import RepairQueue from './components/RepairQueue.svelte';
   import ToolDetailModal from './components/ToolDetailModal.svelte';
+  import TrainingModal from './components/TrainingModal.svelte';
+  import ReturnCheckModal from './components/ReturnCheckModal.svelte';
   import {
     tools,
     borrowRecords,
@@ -15,7 +17,9 @@
     selectedTool,
     stats,
     startDepositRefund,
-    completeDepositRefund
+    completeDepositRefund,
+    showTrainingModal,
+    showReturnCheckModal
   } from './stores';
   import type { Tool, ToolStatus, UserRole } from './types';
 
@@ -89,6 +93,22 @@
       return records;
     });
   }
+
+  function handleStartReturnCheck(recordId: string) {
+    const record = $borrowRecords.find(r => r.id === recordId);
+    const tool = $tools.find(t => t.id === record?.toolId);
+    if (record && tool) {
+      $showReturnCheckModal = { borrowRecord: record };
+    }
+  }
+
+  function handleCloseTrainingModal() {
+    $showTrainingModal = { tool: null };
+  }
+
+  function handleCloseReturnCheckModal() {
+    $showReturnCheckModal = { borrowRecord: null };
+  }
 </script>
 
 <div class="min-h-screen bg-gradient-to-br from-slate-50 via-forest-50/30 to-slate-50">
@@ -115,9 +135,11 @@
       <div class="space-y-6">
         <DepositPanel
           records={$borrowRecords}
+          tools={$tools}
           currentRole={$currentRole}
           onStartRefund={handleStartDepositRefund}
           onCompleteRefund={handleCompleteDepositRefund}
+          onStartReturnCheck={handleStartReturnCheck}
         />
         <RepairQueue
           orders={$repairOrders}
@@ -146,5 +168,24 @@
       onBorrow={handleBorrow}
       onReturn={handleReturn}
     />
+  {/if}
+
+  {#if $showTrainingModal.tool}
+    <TrainingModal
+      tool={$showTrainingModal.tool}
+      onClose={handleCloseTrainingModal}
+    />
+  {/if}
+
+  {#if $showReturnCheckModal.borrowRecord}
+    {@const record = $showReturnCheckModal.borrowRecord}
+    {@const toolForCheck = $tools.find(t => t.id === record.toolId)}
+    {#if toolForCheck}
+      <ReturnCheckModal
+        borrowRecord={record}
+        tool={toolForCheck}
+        onClose={handleCloseReturnCheckModal}
+      />
+    {/if}
   {/if}
 </div>

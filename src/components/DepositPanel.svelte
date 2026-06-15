@@ -1,11 +1,35 @@
 <script lang="ts">
-  import { Wallet, Clock, CheckCircle, User, Phone, RefreshCw, ArrowRight } from 'lucide-svelte';
-  import type { BorrowRecord, DepositStatus, UserRole } from '../types';
+  import { Wallet, Clock, CheckCircle, User, Phone, RefreshCw, ArrowRight, Package, AlertTriangle, XCircle } from 'lucide-svelte';
+  import type { BorrowRecord, DepositStatus, UserRole, Tool, CheckItemStatus } from '../types';
+  import { calculateRefundAmount } from '../stores';
 
   export let records: BorrowRecord[];
+  export let tools: Tool[];
   export let currentRole: UserRole;
   export let onStartRefund: (recordId: string) => void;
   export let onCompleteRefund: (recordId: string) => void;
+  export let onStartReturnCheck: (recordId: string) => void;
+
+  const checkStatusMap: Record<CheckItemStatus, { label: string; color: string }> = {
+    good: { label: '完好', color: 'text-emerald-600' },
+    damaged: { label: '损坏', color: 'text-amber-600' },
+    missing: { label: '缺失', color: 'text-red-600' }
+  };
+
+  function getTool(toolId: string): Tool | undefined {
+    return tools.find(t => t.id === toolId);
+  }
+
+  function getRefundDisplay(record: BorrowRecord) {
+    if (!record.returnChecklist) return null;
+    const refund = calculateRefundAmount(
+      record.depositAmount,
+      record.returnChecklist.missingItems,
+      record.returnChecklist.hasDamage
+    );
+    const deduction = record.depositAmount - refund;
+    return { refund, deduction };
+  }
 
   const statusMap: Record<DepositStatus, { label: string; color: string; bgColor: string; progressColor: string; progressWidth: string }> = {
     held: { label: '保管中', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-200', progressColor: 'bg-amber-500', progressWidth: 'w-1/3' },
@@ -91,10 +115,74 @@
           <div class="flex items-center gap-1.5">
             <Wallet class="w-4 h-4 text-amber-600" />
             <span class="font-bold text-amber-600 font-display">¥{record.depositAmount}</span>
+            {#if record.returnChecklist && getRefundDisplay(record)?.deduction !== 0}
+              <span class="text-red-500 text-xs font-medium">-¥{getRefundDisplay(record)?.deduction}</span>
+              <span class="text-emerald-600 text-xs font-medium">→¥{getRefundDisplay(record)?.refund}</span>
+            {/if}
           </div>
         </div>
 
-        {#if currentRole === 'admin' && record.depositStatus === 'held'}
+        {#if record.returnChecklist}
+          <div class="mt-3 pt-3 border-t border-slate-200">
+            <div class="flex items-center gap-1.5 text-slate-700 text-xs font-medium mb-2">
+              <Package class="w-3.5 h-3.5 text-orange-500" />
+              归还检查结果
+            </div>
+            <div class="grid grid-cols-2 gap-1 text-xs text-slate-600">
+              <div class="flex items-center gap-1">
+                <span>外观：</span>
+                <span class={checkStatusMap[record.returnChecklist.appearance].color}>{checkStatusMap[record.returnChecklist.appearance].label}</span>
+              </div>
+              {#if getTool(record.toolId)?.hasBattery}
+                <div class="flex items-center gap-1">
+                  <span>电池：</span>
+                  <span class={checkStatusMap[record.returnChecklist.battery].color}>{checkStatusMap[record.returnChecklist.battery].label}</span>
+                </div>
+              {/if}
+              {#if getTool(record.toolId)?.hasManual}
+                <div class="flex items-center gap-1">
+                  <span>说明书：</span>
+                  <span class={checkStatusMap[record.returnChecklist.manual].color}>{checkStatusMap[record.returnChecklist.manual].label}</span>
+                </div>
+              {/if}
+              <div class="flex items-center gap-1">
+                <span>清洁：</span>
+                <span class={checkStatusMap[record.returnChecklist.cleanliness].color}>{checkStatusMap[record.returnChecklist.cleanliness].label}</span>
+              </div>
+            </div>
+            {#if record.returnChecklist.missingItems.length > 0}
+              <div class="mt-1.5 text-xs text-red-600">
+                <span class="font-medium">缺失：</span>{record.returnChecklist.missingItems.join('、')}
+              </div>
+            {/if}
+            {#if record.returnChecklist.hasDamage && record.returnChecklist.damageDescription}
+              <div class="mt-1.5 text-xs text-amber-600">
+                <span class="font-medium">损坏：</span>{record.returnChecklist.damageDescription}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
+        {#if currentRole === 'admin' && record.depositStatus === 'held' && !record.returnChecklist}
+          <div class="mt-3 pt-3 border-t border-slate-200 flex justify-end gap-2">
+            <button
+              on:click={() => onStartReturnCheck(record.id)}
+              class="px-3 py-1.5 text-xs font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-1.5"
+            >
+              <Package class="w-3.5 h-3.5" />
+              归还检查
+            </button>
+            <button
+              on:click={() => onStartRefund(record.id)}
+              class="px-3 py-1.5 text-xs font-medium bg-forest-500 text-white rounded-lg hover:bg-forest-600 transition-colors flex items-center gap-1.5"
+            >
+              <ArrowRight class="w-3.5 h-3.5" />
+              登记退还
+            </button>
+          </div>
+        {/if}
+
+        {#if currentRole === 'admin' && record.depositStatus === 'held' && record.returnChecklist}
           <div class="mt-3 pt-3 border-t border-slate-200 flex justify-end gap-2">
             <button
               on:click={() => onStartRefund(record.id)}

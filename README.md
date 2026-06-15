@@ -90,7 +90,7 @@ npm install
 npm run dev
 ```
 
-访问地址：http://localhost:5173
+访问地址：http://localhost:5175
 
 #### 3. 类型检查
 
@@ -133,7 +133,7 @@ docker compose up --build
 docker compose up --build -d
 ```
 
-访问地址：http://localhost:5173
+访问地址：http://localhost:5175
 
 #### 2. 停止和清理服务
 

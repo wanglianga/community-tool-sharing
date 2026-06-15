@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { X, Wrench, User, Calendar, ShieldAlert, GraduationCap, Clock, AlertTriangle, CheckCircle, Phone } from 'lucide-svelte';
-  import type { Tool, ToolStatus, BorrowRecord, RepairOrder, UserRole } from '../types';
+  import { X, Wrench, User, Calendar, ShieldAlert, GraduationCap, Clock, AlertTriangle, CheckCircle, Phone, Package, Palette, Battery, BookOpen, Sparkles } from 'lucide-svelte';
+  import type { Tool, ToolStatus, BorrowRecord, RepairOrder, UserRole, CheckItemStatus } from '../types';
+  import { trainingRecords, trainingRegistrations, currentResident, showTrainingModal, calculateRefundAmount } from '../stores';
 
   export let tool: Tool;
   export let borrowRecords: BorrowRecord[];
@@ -18,14 +19,46 @@
     scrapped: { label: '报废', color: 'text-gray-700', bgColor: 'bg-gray-100 border-gray-200', dotColor: 'bg-status-scrapped' }
   };
 
+  const checkStatusMap: Record<CheckItemStatus, { label: string; color: string; icon: typeof CheckCircle }> = {
+    good: { label: '完好', color: 'text-emerald-600', icon: CheckCircle },
+    damaged: { label: '损坏', color: 'text-amber-600', icon: AlertTriangle },
+    missing: { label: '缺失', color: 'text-red-600', icon: X }
+  };
+
   $: status = statusMap[tool.status];
   $: toolBorrowRecords = borrowRecords.filter(r => r.toolId === tool.id);
   $: toolRepairOrders = repairOrders.filter(r => r.toolId === tool.id);
+
+  $: currentUserTraining = $trainingRecords
+    .filter(r => r.toolId === tool.id && r.residentName === $currentResident)
+    .sort((a, b) => new Date(b.trainingDate).getTime() - new Date(a.trainingDate).getTime())[0];
+
+  $: hasValidTraining = currentUserTraining?.status === 'passed';
+
+  $: hasRegistered = $trainingRegistrations.some(
+    r => r.toolId === tool.id && r.residentName === $currentResident && r.status !== 'completed'
+  );
 
   function handleBackdropClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
       onClose();
     }
+  }
+
+  function handleOpenTraining() {
+    $showTrainingModal = { tool };
+    onClose();
+  }
+
+  function getRefundDisplay(record: BorrowRecord) {
+    if (!record.returnChecklist) return null;
+    const refund = calculateRefundAmount(
+      record.depositAmount,
+      record.returnChecklist.missingItems,
+      record.returnChecklist.hasDamage
+    );
+    const deduction = record.depositAmount - refund;
+    return { refund, deduction };
   }
 </script>
 
@@ -98,6 +131,79 @@
         </div>
 
         <div class="space-y-5">
+          {#if tool.needTraining}
+            <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-5 border border-purple-200">
+              <h3 class="font-display font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                <GraduationCap class="w-4 h-4" />
+                培训资格
+              </h3>
+              {#if hasValidTraining}
+                <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-200">
+                  <div class="flex items-center gap-2 text-emerald-700 mb-1">
+                    <CheckCircle class="w-4 h-4" />
+                    <span class="font-medium">您已获得培训资格</span>
+                  </div>
+                  <div class="text-sm text-emerald-600">
+                    有效期至：{currentUserTraining.expiryDate}
+                  </div>
+                </div>
+              {:else if currentUserTraining?.status === 'expired'}
+                <div class="bg-red-50 rounded-xl p-3 border border-red-200 mb-3">
+                  <div class="flex items-center gap-2 text-red-700 mb-1">
+                    <AlertTriangle class="w-4 h-4" />
+                    <span class="font-medium">培训资格已过期</span>
+                  </div>
+                  <div class="text-sm text-red-600">
+                    原有效期至：{currentUserTraining.expiryDate}，请重新报名培训
+                  </div>
+                </div>
+              {:else if hasRegistered}
+                <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 mb-3">
+                  <div class="flex items-center gap-2 text-amber-700 mb-1">
+                    <Clock class="w-4 h-4" />
+                    <span class="font-medium">已报名培训，等待安排</span>
+                  </div>
+                  <div class="text-sm text-amber-600">
+                    请耐心等待服务站安排培训时间
+                  </div>
+                </div>
+              {:else}
+                <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 mb-3">
+                  <div class="flex items-center gap-2 text-amber-700 mb-1">
+                    <AlertTriangle class="w-4 h-4" />
+                    <span class="font-medium">借用前需完成培训</span>
+                  </div>
+                  <div class="text-sm text-amber-600">
+                    该工具操作存在安全风险，请先完成培训并获得资格
+                  </div>
+                </div>
+              {/if}
+              <button
+                on:click={handleOpenTraining}
+                class="w-full mt-2 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                <GraduationCap class="w-4 h-4" />
+                {hasValidTraining ? '查看培训详情' : hasRegistered ? '查看报名状态' : '报名参加培训'}
+              </button>
+            </div>
+          {/if}
+
+          {#if tool.accessories.length > 0}
+            <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200">
+              <h3 class="font-display font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                <Package class="w-4 h-4 text-orange-600" />
+                配件清单
+              </h3>
+              <div class="flex flex-wrap gap-2">
+                {#each tool.accessories as acc (acc)}
+                  <span class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white text-slate-700 border border-slate-200">
+                    {acc}
+                  </span>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
           {#if tool.currentBorrower}
             <div class="bg-blue-50 rounded-2xl p-5 border border-blue-200">
               <h3 class="font-display font-semibold text-blue-900 mb-3 flex items-center gap-2">
@@ -119,13 +225,23 @@
             </div>
           {/if}
 
-          {#if currentRole === 'admin' && tool.status === 'available'}
+          {#if currentRole === 'admin' && tool.status === 'available' && (!tool.needTraining || hasValidTraining)}
             <button
               on:click={() => onBorrow(tool)}
               class="w-full py-3 bg-forest-500 hover:bg-forest-600 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl"
             >
               登记借出
             </button>
+          {/if}
+
+          {#if currentRole === 'admin' && tool.status === 'available' && tool.needTraining && !hasValidTraining}
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div class="flex items-center gap-2 text-amber-700 mb-2">
+                <AlertTriangle class="w-4 h-4" />
+                <span class="font-medium text-sm">无法借出</span>
+              </div>
+              <p class="text-xs text-amber-600">该工具需要培训资格才能借出，请先确认借用人已完成培训。</p>
+            </div>
           {/if}
 
           {#if currentRole === 'admin' && tool.status === 'borrowed'}
@@ -172,11 +288,77 @@
                       <div class="flex items-center gap-1.5">
                         <ShieldAlert class="w-3.5 h-3.5 text-slate-400" />
                         押金 ¥{record.depositAmount}
+                        {#if record.returnChecklist}
+                          <span class="text-slate-400">→</span>
+                          <span class={getRefundDisplay(record)?.deduction === 0 ? 'text-emerald-600' : 'text-amber-600'}>
+                            实退 ¥{getRefundDisplay(record)?.refund}
+                          </span>
+                          {#if getRefundDisplay(record)?.deduction !== 0}
+                            <span class="text-red-500 text-xs">(-¥{getRefundDisplay(record)?.deduction})</span>
+                          {/if}
+                        {/if}
                       </div>
                       {#if record.hasDamage}
                         <div class="flex items-center gap-1.5 text-red-600">
                           <AlertTriangle class="w-3.5 h-3.5" />
                           归还时有损坏
+                        </div>
+                      {/if}
+                      {#if record.returnChecklist}
+                        <div class="mt-2 pt-2 border-t border-slate-200">
+                          <div class="flex items-center gap-1.5 text-slate-700 font-medium mb-2">
+                            <Package class="w-3.5 h-3.5 text-orange-500" />
+                            归还检查记录
+                          </div>
+                          <div class="grid grid-cols-2 gap-1 text-xs">
+                            <div class="flex items-center gap-1">
+                              <Palette class="w-3 h-3 text-slate-400" />
+                              <span>外观：</span>
+                              <span class={checkStatusMap[record.returnChecklist.appearance].color}>
+                                <svelte:component this={checkStatusMap[record.returnChecklist.appearance].icon} class="w-3 h-3 inline" />
+                                {checkStatusMap[record.returnChecklist.appearance].label}
+                              </span>
+                            </div>
+                            {#if tool.hasBattery}
+                              <div class="flex items-center gap-1">
+                                <Battery class="w-3 h-3 text-slate-400" />
+                                <span>电池：</span>
+                                <span class={checkStatusMap[record.returnChecklist.battery].color}>
+                                  <svelte:component this={checkStatusMap[record.returnChecklist.battery].icon} class="w-3 h-3 inline" />
+                                  {checkStatusMap[record.returnChecklist.battery].label}
+                                </span>
+                              </div>
+                            {/if}
+                            {#if tool.hasManual}
+                              <div class="flex items-center gap-1">
+                                <BookOpen class="w-3 h-3 text-slate-400" />
+                                <span>说明书：</span>
+                                <span class={checkStatusMap[record.returnChecklist.manual].color}>
+                                  <svelte:component this={checkStatusMap[record.returnChecklist.manual].icon} class="w-3 h-3 inline" />
+                                  {checkStatusMap[record.returnChecklist.manual].label}
+                                </span>
+                              </div>
+                            {/if}
+                            <div class="flex items-center gap-1">
+                              <Sparkles class="w-3 h-3 text-slate-400" />
+                              <span>清洁：</span>
+                              <span class={checkStatusMap[record.returnChecklist.cleanliness].color}>
+                                <svelte:component this={checkStatusMap[record.returnChecklist.cleanliness].icon} class="w-3 h-3 inline" />
+                                {checkStatusMap[record.returnChecklist.cleanliness].label}
+                              </span>
+                            </div>
+                          </div>
+                          {#if record.returnChecklist.missingItems.length > 0}
+                            <div class="mt-1.5 text-xs text-red-600">
+                              <span class="font-medium">缺失配件：</span>
+                              {record.returnChecklist.missingItems.join('、')}
+                            </div>
+                          {/if}
+                          {#if record.returnChecklist.notes}
+                            <div class="mt-1.5 text-xs text-slate-500">
+                              <span class="font-medium">备注：</span>{record.returnChecklist.notes}
+                            </div>
+                          {/if}
                         </div>
                       {/if}
                     </div>

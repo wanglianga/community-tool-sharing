@@ -2,6 +2,8 @@ export type ToolStatus = 'available' | 'borrowed' | 'pending' | 'repairing' | 's
 export type DepositStatus = 'held' | 'refunding' | 'refunded';
 export type RepairPriority = 'low' | 'medium' | 'high';
 export type UserRole = 'resident' | 'admin' | 'repairer';
+export type TrainingStatus = 'pending' | 'passed' | 'expired';
+export type CheckItemStatus = 'good' | 'damaged' | 'missing';
 
 export interface Tool {
   id: string;
@@ -14,6 +16,50 @@ export interface Tool {
   depositAmount: number;
   currentBorrower?: string;
   expectedReturnDate?: string;
+  accessories: string[];
+  hasBattery: boolean;
+  hasManual: boolean;
+}
+
+export interface TrainingRecord {
+  id: string;
+  toolId: string;
+  toolName: string;
+  residentName: string;
+  residentPhone: string;
+  trainingDate: string;
+  expiryDate: string;
+  status: TrainingStatus;
+  trainer: string;
+  notes?: string;
+}
+
+export interface TrainingRegistration {
+  id: string;
+  toolId: string;
+  toolName: string;
+  residentName: string;
+  residentPhone: string;
+  registrationDate: string;
+  status: 'pending' | 'scheduled' | 'completed';
+  scheduledDate?: string;
+}
+
+export interface ReturnChecklist {
+  id: string;
+  borrowRecordId: string;
+  toolId: string;
+  accessories: Record<string, CheckItemStatus>;
+  appearance: CheckItemStatus;
+  battery: CheckItemStatus;
+  manual: CheckItemStatus;
+  cleanliness: CheckItemStatus;
+  missingItems: string[];
+  hasDamage: boolean;
+  damageDescription?: string;
+  inspector: string;
+  checkDate: string;
+  notes?: string;
 }
 
 export interface BorrowRecord {
@@ -29,6 +75,7 @@ export interface BorrowRecord {
   depositStatus: DepositStatus;
   returnPhoto?: string;
   hasDamage?: boolean;
+  returnChecklist?: ReturnChecklist;
 }
 
 export interface RepairOrder {
